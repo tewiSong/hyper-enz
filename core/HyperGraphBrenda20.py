@@ -52,19 +52,8 @@ class HyperGraphV3(Module):
 
         self.dropout = torch.nn.Dropout(p=0.5)
 
-        # self.node_encoder = GNN(
-        #     num_layer=config["node_gnn_layer"],
-        #     emb_dim=hidden_dim,
-        #     gnn_type='gin',
-        #     drop_ratio=config["node_gnn_dropout"],
-        #     JK='last',
-        # )
+       
         self.mse_loss = nn.MSELoss()
-        # self.node_encoder = TrfmSeq2seq(len(NodeGnnDataset.vocab),config["transformer_dim"], len(NodeGnnDataset.vocab), config["transformer_layer"]).cuda()
-        # self.tokenizer = T5Tokenizer.from_pretrained("/home/skl/yl/ce_project/relation_cl/core/mollm/pretrain_model/MoleculeCaption/molt5-base-smiles2caption/", model_max_length=512)
-        # self.node_encoder = GinDecoder(has_graph=False, MoMuK=False, model_size="base", use_3d=True)
-        # for name, parameter in self.node_encoder.named_parameters():
-        #     parameter.requires_grad = False
         
         self.NodeGnnDataset= NodeGnnDataset
         self.clDataset = clDataset
@@ -102,23 +91,6 @@ class HyperGraphV3(Module):
         self.label = torch.tensor(label)
 
     def init_node_embedding(self):
-        # embeddings = []
-        # transfor_embedding = []
-        # for i in range(self.c_num):
-        #     embeddings.append(self.NodeGnnDataset.get(i))
-          
-        #     if len(embeddings) == 32 or i == self.c_num-1:
-        #         smiles_tokens_ = self.tokenizer(embeddings, padding=True, truncation=True, return_tensors="pt")
-        #         smiles_tokens = smiles_tokens_['input_ids'].cuda()
-        #         src_padding_mask = smiles_tokens_['attention_mask'].cuda()  # encoder input mask
-        #         node = self.node_encoder.get_smiles_emb(smiles_tokens,src_padding_mask)
-        #         node = torch.mean(node, dim=1)
-        #         transfor_embedding.append(node)
-        #         embeddings = []
-        # embeddings = torch.cat(transfor_embedding, dim=0)
-        # self.node_emb = embeddings
-        # self.node_emb =  torch.FloatTensor(torch.randn(self.c_num,self.entity_dim))
-        # print("init node_emb over: %s" % str(self.node_emb.shape))
         pass
 
 
@@ -130,29 +102,11 @@ class HyperGraphV3(Module):
 
     def reg_l2(self):
         return torch.mean(torch.norm(self.node_emb.weight,dim=-1))
-        # reg_loss = 0
-        # for param in self.parameters():
-        #     reg_loss += torch.norm(param, p=2)  # 使用L2正则化
-        # return reg_loss
-        # return torch.mean(torch.norm())
+       
 
     def get_base_emb(self, nids):
-        # batch = []
-        # for i in range(len(nids)):
-        #     batch.append(self.NodeGnnDataset.get(nids[i]))
-        # smiles_tokens_ = self.tokenizer(batch, padding=True, truncation=True, return_tensors="pt")
-        # smiles_tokens = smiles_tokens_['input_ids'].cuda()
-        # src_padding_mask = smiles_tokens_['attention_mask'].cuda()  # encoder input mask
-        # node = self.node_encoder.get_smiles_emb(smiles_tokens,src_padding_mask)
-        # node = torch.mean(node, dim=1)
         nids = nids.cuda()
         node = self.node_emb(nids)
-        # node = self.node_emb[nids]
-
-        # print(node.shape)
-        # batch = torch.stack(batch,dim=0)
-        # batch = batch.cuda()
-        # batch_node = self.node_encoder.encode(batch)
         return node
 
     def single_emb(self, data,add_noise=False):
@@ -162,8 +116,6 @@ class HyperGraphV3(Module):
         if add_noise:
             x_noise = self.sample_noise(x)
             x = x + x_noise
-        # n_id = n_id.cuda()
-        # x = self.node_emb(n_id[split_idx:])
         hyper_edge_emb = self.encoder(n_id,x, adjs,split_idx, True)
         return hyper_edge_emb
 
@@ -310,66 +262,22 @@ class HyperGraphV3(Module):
         return loss
 
     @staticmethod
-    def train_step(model,optimizer,data,loss_funcation, config=None,subClassOf=None, typeOf= None, subLoss=None, typeLoss=None,cl_dataset=None):
+    def train_step(model,optimizer,data,config=None):
         optimizer.zero_grad()
         model.train()
-
         head,relation,tail,negative_sample,head_out,tail_out = data
         relation = relation.cuda()
 
         head_out, cl_head = head_out
         tail_out, cl_tail = tail_out
-        
         # base loss
         head_emb = model.single_emb(head_out)
         tail_emb = model.single_emb(tail_out)
         pos_score = model.full_score(head_emb, relation, tail_emb)
-
-        # pos_score = pos_score.unsqueeze(-1)
-        # lable shapre = len(head)* (1 + len(negative_sample))
-        # lable = torch.zeros(len(head), 1 + len(negative_sample[0]))
-        # lable[:, 0] = 1 
-        # lable = lable.cuda()
-
-        # negative_sample = negative_sample.cuda()
-        # neg_score = model.full_score(head_emb, negative_sample, tail_emb)
-
-        # score = torch.cat([pos_score,neg_score],dim=-1)
-        # loss = model.loss_funcation(score,lable)
-
         loss = model.loss_funcation(pos_score,relation)
-        # loss = model.loss_funcation(pos_score,neg_score)
         logs = {    
             "loss": loss.item(),
         }
-        if config["add_entity_noise"]:
-            head_emb_noise = model.single_emb(head_out,add_noise=True)
-            tail_emb_noise = model.single_emb(tail_out,add_noise=True)
-            noise_score = model.full_score(head_emb_noise, relation, tail_emb_noise, add_noise=False)
-            mse_loss = model.mse_loss(pos_score, noise_score)
-            noise_loss = model.loss_funcation(noise_score,relation)
-
-            loss = loss + mse_loss*config["noise_weight"] + noise_loss
-            logs["mse_loss"] = mse_loss.item()*config["noise_weight"]
-           
-        if config["add_edge_noise"]:
-            noise_score = model.full_score(head_emb, relation, tail_emb, add_noise=True)
-            mse_loss = model.mse_loss(pos_score, noise_score)
-            noise_loss = model.loss_funcation(noise_score,relation)
-
-            loss = loss + mse_loss*config["noise_weight"] + noise_loss
-            logs["mse_loss"] = mse_loss.item()*config["noise_weight"] 
-            logs["noise_loss"] = noise_loss.item()
-
-        add_cl = False
-        if config["add_edge_cl"]:
-            base,pos,weight,base_out,pos_out = next(cl_dataset)
-            base_emb = model.single_emb(base_out)
-            pos_emb = model.single_emb(pos_out)
-            cl_loss = HyperGraphV3.cl_score(base_emb,pos_emb,weight, config["cl_temp"])
-            loss += config["cl_weight"]*cl_loss
-            logs["cl_loss"] = cl_loss.item() * config["cl_weight"]
-
         if config["reg_weight"] != 0.0:
             reg = model.reg_l2()
             logs["reg"] = reg * config["reg_weight"]

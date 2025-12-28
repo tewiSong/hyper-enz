@@ -72,10 +72,6 @@ class HyperGraphV3(Module):
 
         self.rel_emb = nn.Embedding(self.e_num, 1280)
         self.node_emb = nn.Embedding(self.c_num, 1024)
-
-        # init_range =  6.0 / math.sqrt(hidden_dim)
-        # nn.init.uniform_(self.rel_emb.weight, -init_range, init_range)
-
         self.dropout = torch.nn.Dropout(p=0.5)
 
         self.NodeGnnDataset= NodeGnnDataset
@@ -178,11 +174,6 @@ class HyperGraphV3(Module):
 
     def reg_l2(self):
         return torch.mean(torch.norm(self.node_emb.weight,dim=-1))
-        # reg_loss = 0
-        # for param in self.parameters():
-        #     reg_loss += torch.norm(param, p=2)  # 使用L2正则化
-        # return reg_loss
-        # return torch.mean(torch.norm())
 
     def get_base_emb(self, nids):
         node = self.node_emb(nids.cuda())
