@@ -9,7 +9,6 @@ import os
 import numpy as np
 from scipy.sparse import csr_matrix
 import yaml 
-import math
 import torch
 from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau,MultiStepLR
 from util.dataloader import OneShotIterator,NagativeSampleDataset,BidirectionalOneShotIterator
@@ -34,21 +33,6 @@ from core.HyperCEBrenda import HyperKGEConfig
 
 import pickle
 
-def cosine_annealing(epoch, num_epochs, start_lr, end_lr):
-    import math
-    cos_val = math.cos(math.pi * epoch / num_epochs)
-    return end_lr + (start_lr - end_lr) * 0.5 * (1 + cos_val)
-
-def get_noise_sigma(step, max_step,config):
-    noise_sigma = config["noise_sigma"]
-    noise_sigma = noise_sigma * cosine_annealing(step, max_step, 0, 1)
-    return noise_sigma
-
-def get_entity_noise_sigma(weight, step, max_step):
-    _3sigma_percent = 0.9973
-    noise_sigma = float(torch.topk(weight.reshape(-1).abs(), int(weight.shape[0]*weight.shape[1] * _3sigma_percent), largest=False)[0][-1]) / 3 * 0.1
-    noise_sigma = noise_sigma * cosine_annealing(step, max_step, 0, 1)
-    return noise_sigma
 
 def logging_log(step, logs,writer):
     metrics = {}
@@ -69,7 +53,7 @@ def set_config(args=None):
     parser.add_argument('--debug', action='store_true', help='valid model')
 
     
-    parser.add_argument('--max_step', type=int,default=200001, help='最大的训练step')
+    parser.add_argument('--max_step', type=int,default=200001, help='max training step')
     parser.add_argument("--save_path", type=str)
     parser.add_argument("--data_path", type=str)
     parser.add_argument("--batch_size", type=int, default=1024)
@@ -86,7 +70,6 @@ def set_config(args=None):
 
     parser.add_argument("--loss_function", type=str)
 
-    # HAKE 模型的混合权重
     parser.add_argument("--mode_weight",type=float,default=0.5)
     parser.add_argument("--phase_weight",type=float,default=0.5)
 
@@ -100,14 +83,14 @@ def set_config(args=None):
     parser.add_argument("--g_mode",type=float,default=0.5)
     parser.add_argument("--g_phase",type=float,default=0.5)
 
-    # RotPro 约束参数配置
+    # RotPro constraint parameters configuration
     parser.add_argument("--gamma_m",type=float,default=0.000001)
     parser.add_argument("--alpha",type=float,default=0.0005)
     parser.add_argument("--beta",type=float,default=1.5)
     parser.add_argument("--train_pr_prop",type=float,default=1)
     parser.add_argument("--loss_weight",type=float,default=1)
 
-    # 选择数据集
+    # choose dataset
     parser.add_argument("--level",type=str,default='ins')
     parser.add_argument("--data_reverse",action='store_true')
 
@@ -178,7 +161,7 @@ def test_step_function(model, test_dataset, args, loss_function=None):
         return metrics
 
 if __name__=="__main__":
-    # 读取4个数据集
+    # read 4 datasets
     setup_seed(20)
     args = set_config()
     with open('./config/hypergraph_brenda_07_all_data.yml','r', encoding='utf-8') as f:
@@ -220,7 +203,7 @@ if __name__=="__main__":
     else:
         logset.set_logger(root_path,'test.log')
     
-    # 读取数据集
+    # read datasets
     logging.info('Model: %s begining load data' % modelConfig['name'])
     train_dataset,valid_dataset,test_dataset,graph_info,train_info,train_test = build_graph_sampler(modelConfig)
     logging.info('build trainning dataset....')
@@ -239,7 +222,7 @@ if __name__=="__main__":
         model = model.cuda()
     otherEmb = [param for name,param in model.named_parameters() if name != 'box.init_tensor' and name != 'box.trans_emb.weight']
     
-    # 给优化器设置正则
+    # set regularizer for optimizer
     optimizer = torch.optim.Adam([
         {
          'params':filter(lambda p: p.requires_grad , otherEmb), 
@@ -248,8 +231,8 @@ if __name__=="__main__":
         ], lr=lr
     )
     result = get_parameter_number(model)
-    logging.info("模型总大小为：%s" % str(result["Total"]))
-    # 如果-有保-存模-型则，读取-模型,进行-测试
+    logging.info("The total size of the model is: %s" % str(result["Total"]))
+    # if there is a saved model, read the model and test it
     if init_path != None:
         logging.info('init: %s' % init_path)
         checkpoint = torch.load(os.path.join(init_path, 'checkpoint'))
@@ -265,7 +248,7 @@ if __name__=="__main__":
     logging.info('init step: %s' % init_step)
     logging.info('lr: %s' % lr)
 
-    # 设置学习率更新策略
+    # set learning rate update strategy
     lr_scheduler = MultiStepLR(optimizer,milestones=[500], gamma=decay)
     logsInstance = []
     logsTypeOf= []
@@ -286,7 +269,7 @@ if __name__=="__main__":
     vio_cllog = []
 
     if args.train :
-        logging.info('beging trainning')
+        logging.info('begin training')
         for step in range(init_step, max_step):
             begin_time = time.time()
 

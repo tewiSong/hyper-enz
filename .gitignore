@@ -1,11 +1,5 @@
-brenda_07/
-brenda_data/
-dcgm/
-doc/
-AGENTS.md
 *.out
 *.err
 *.log
 __pycache__/
-pre_handle_data/
 models/

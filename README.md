@@ -1,6 +1,6 @@
 # Hyper-Enzyme: Hypergraph Convolution Transformer for Enzymatic Reaction Prediction
 
-Overview
+## Overview
 
 This project implements a hypergraph-based transformer to model enzymatic reactions and supports two evaluation modes:
 
@@ -8,7 +8,7 @@ This project implements a hypergraph-based transformer to model enzymatic reacti
 2) Enzyme–substrate matching: given an enzyme–substrate pair, retrieve the most relevant reaction equation.
 
 
-Environment
+## Environment
 
 Tested with Python 3.9. Please use a dedicated conda environment and appropriate CUDA toolkit.
 
@@ -41,7 +41,7 @@ pip install numpy scipy pyyaml tensorboard transformers rdkit-pypi torchstat
 ```
 
 
-Running Experiments
+## Running Experiments
 
 Note: Pass --cuda to enable GPU. Checkpoints and logs are written under ./models/<save_path>.
 
@@ -54,7 +54,7 @@ python hyper_graph_brenda.py \
   --cuda \
   --train \
   --save_path brenda/run1 \
-  --configName hyper_graph_noise_07
+  --configName hyper_graph_noise_04
 ```
 
 Evaluate best checkpoint on test set
@@ -64,33 +64,64 @@ python hyper_graph_brenda.py \
   --cuda \
   --test \
   --save_path brenda/run1 \
-  --configName hyper_graph_noise_07
+  --configName hyper_graph_noise_04
 ```
 
 Metrics printed include MRR, MR, HITS@1/3/10 on relation (reaction type) ranking.
 
-2) Enzyme–Substrate Matching (ReactZyme-style) — in progress
-
-The entry script hyper_graph_react_zyme.py and core/HyperGraphReactZyme.py implement the matching head and evaluation, but the dataset builder util_react/react_zyme_datasets.py and required precomputed embeddings referenced by the script (pre_handle_data/react_zyme/c_emb_table.pt and e_emb_table.pt) are not included here. If you provide those assets and the missing util_react module, you can run:
-
-```bash
-python hyper_graph_react_zyme.py \
-  --cuda \
-  --train \
-  --save_path reactzyme/run1 \
-  --configName hyper_graph_noise_07
-```
 
 Without these assets, this pipeline will not run. See Caveats below.
 
-GPU and logging notes
+## Data Preprocessing
+
+- Default: The repo already includes preprocessed graph files under `pre_handle_data/all/`. Training loads them directly; no preprocessing is required.
+- What the trainer loads: see `util/brenda_datasets.py` which reads
+  - `pre_handle_data/all/brenda_bigger_lhf_no_e_add_edge_type_add_ne_reaction_graph_info.pkl`
+  - `pre_handle_data/all/brenda_bigger_lhf_no_e_add_edge_type_add_ne_reaction_train_info.pkl`
+
+Rebuild the preprocessed data (NE-enhanced version used by training)
+- Inputs required under `brenda_07/all/`:
+  - `train.json`, `valid.json`, `test.json`, and `e2noereaction.json`
+- Commands (run from repo root):
+  - `cd util`
+  - `python pre_handle_breand_data_ne.py`
+- Expected outputs:
+  - `pre_handle_data/all/brenda_bigger_lhf_no_e_add_edge_type_add_ne_reaction_graph_info.pkl`
+  - `pre_handle_data/all/brenda_bigger_lhf_no_e_add_edge_type_add_ne_reaction_train_info.pkl`
+
+Optional: build a non-NE version
+- Command: `cd util && python pre_handle_breand_data.py`
+- Outputs go to: `pre_handle_data/brenda_07/`
+- Note: The main training code currently loads the NE version under `pre_handle_data/all/`. To switch, update the file paths in `util/brenda_datasets.py` accordingly.
+
+Baselines (no preprocessing needed)
+- `baselines/train_lightgcl.py` reads `brenda_07/*.json` directly via `baselines/data/json_brenda.py`.
+
+Notes
+- Some SMILES utilities under `util/smiles/transormer_util.py` contain hardcoded absolute paths pointing to an external machine; they are not required for the main training/evaluation pipeline here.
+
+### GPU and logging notes
 
 - Use the --cuda flag to run on GPU; select devices via CUDA_VISIBLE_DEVICES if needed.
 - TensorBoard logs are under models/<save_path>/log. Start TensorBoard with:
   - tensorboard --logdir models/<save_path>/log --port 6006
 
-Configuration
+### Configuration
 
 - Use config/hypergraph_brenda_07_all_data.yml. Example configs are hyper_graph_noise_0X.
 - Key fields: batch_size, dim, lr, decay, max_step, dropout, neibor_size, test_neibor_size, gamma_s/gamma_t for auxiliary losses.
 
+## Citation
+If you compare with, build on, or use aspects of the Hyper-Enz, please cite the following:
+
+```bash
+@inproceedings{song2026hyperenz,
+  title     = {Improving Enzyme Prediction with Chemical Reaction Equations via Hypergraph-Enhanced Knowledge Graph Embeddings},
+  author    = {Song, Tengwei and Yin, Long and Han, Zhen and Xu, Zhiqiang},
+  booktitle = {Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '26)},
+  year      = {2026},
+  month     = aug,
+  address   = {Jeju Island, South Korea},
+  publisher = {ACM}
+}
+```
