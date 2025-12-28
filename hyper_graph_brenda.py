@@ -222,12 +222,8 @@ if __name__=="__main__":
     
     # 读取数据集
     logging.info('Model: %s begining load data' % modelConfig['name'])
-    train_dataset,valid_dataset,test_dataset,graph_info,train_info,smileGraphDataset, clDataset,train_test,cl_dataset = build_graph_sampler(modelConfig)
+    train_dataset,valid_dataset,test_dataset,graph_info,train_info,train_test = build_graph_sampler(modelConfig)
     logging.info('build trainning dataset....')
-
-    base_loss_funcation = NSSAL(gamma=modelConfig["gamma"], plus_gamma=False)
-    sub_loss_function = NSSAL(gamma=modelConfig["gamma_s"], plus_gamma=True)
-    type_loss_function = NSSAL(gamma=modelConfig["gamma_t"], plus_gamma=True)
 
 
     hyperConfig = HyperKGEConfig()
@@ -241,20 +237,10 @@ if __name__=="__main__":
     
     if cuda:
         model = model.cuda()
-    # model.init_node_embedding()
-    # model.node_emb = model.node_emb.detach()
-
-    # for name,param in model.named_parameters():
-    #     print(name)
-    typeEmb = [param for name,param in model.named_parameters() if name == 'box.init_tensor' or  name =='box.trans_emb.weight']
     otherEmb = [param for name,param in model.named_parameters() if name != 'box.init_tensor' and name != 'box.trans_emb.weight']
     
     # 给优化器设置正则
     optimizer = torch.optim.Adam([
-       {
-         'params':filter(lambda p: p.requires_grad , typeEmb), 
-         'lr': modelConfig['box_lr']
-        },
         {
          'params':filter(lambda p: p.requires_grad , otherEmb), 
          'lr': lr
@@ -321,7 +307,7 @@ if __name__=="__main__":
                 logset.log_metrics('Valid ', step, metrics)
                 ModelUtil.save_best_model(metrics=metrics,best_metrics=bestModel,model=model,optimizer=optimizer,save_variable_list=save_variable_list,args=args)
             for data in train_dataset:
-                log = HyperGraphV3.train_step(model=model,optimizer=optimizer,data=data,loss_funcation=base_loss_funcation,config=modelConfig,subLoss=sub_loss_function,typeLoss=type_loss_function,cl_dataset=cl_dataset)
+                log = HyperGraphV3.train_step(model=model,optimizer=optimizer,data=data,config=modelConfig)
                 baselog.append(log)
             if step % 5 == 0:
                 logging_log(step, baselog, writer)

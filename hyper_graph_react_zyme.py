@@ -178,29 +178,12 @@ def test_step_function(model, test_dataset, args, loss_function=None):
                 head_emb = model.single_emb(head_out)
                 tail_emb = model.single_emb(tail_out)
 
-                # if args["cuda"]:
-                #     head = head.cuda()
-                #     tail = tail.cuda()
-                #     relation = relation.cuda()
-                #     negative_sample = negative_sample.cuda()
-                #     filter_bias = filter_bias.cuda()
-                
-                # all_scores = []
-                # for i in range(n_size//batch_seq+1):
-                #     negative_score = model.full_score(head_emb, negative_sample[:,i*batch_seq:(i+1)*batch_seq],tail_emb)
-                #     negative_score = negative_score.view(batch_size, -1)
-                #     all_scores.append(negative_score)
-                #     torch.cuda.empty_cache()
-                # if negative_score == None: continue
+             
                 score = model.full_score(head_emb, triples[:,1],tail_emb)
-                # all_scores = torch.cat(all_scores, dim=1)
-                # score = all_scores + filter_bias
                 score = score.reshape(2,-1)
                 pre_list.append(score.cpu())
-                # index_list.append(relation.cpu())
                 argsort = torch.argsort(score, dim = 1, descending=True)
                 for i in range(2):
-                    # ranking = (argsort[i, :] == relation[i]).nonzero()
                     ranking = (argsort[i, :] == 1).nonzero()
                     assert ranking.size(0) == 1
                     ranking = 1 + ranking.item()
@@ -268,7 +251,7 @@ if __name__=="__main__":
     
     # 读取数据集
     logging.info('Model: %s begining load data' % modelConfig['name'])
-    train_dataset,valid_dataset,test_dataset,graph_info,train_info,smileGraphDataset, clDataset,train_test,cl_dataset = build_graph_sampler(modelConfig)
+    train_dataset,valid_dataset,test_dataset,graph_info,train_info,train_test = build_graph_sampler(modelConfig)
     logging.info('build trainning dataset....')
 
     base_loss_funcation = NSSAL(gamma=modelConfig["gamma"], plus_gamma=False)
@@ -290,8 +273,6 @@ if __name__=="__main__":
     if cuda:
         model = model.cuda()
 
-    # for name,param in model.named_parameters():
-        # print(name)
     params = [param for name,param in model.named_parameters() ]
     
     # 给优化器设置正则

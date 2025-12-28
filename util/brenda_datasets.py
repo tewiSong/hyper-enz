@@ -77,9 +77,7 @@ def build_graph_sampler(config):
         num_workers=max(1, 4//2),
         collate_fn=TestRelationDataset.collate_fn
     )
-    cl_dataset = None   
-    return train_dataset,valid_dataset,test_dataset,graph_info,train_info, None, None,train_test,cl_dataset
-
+    return train_dataset,valid_dataset,test_dataset,graph_info,train_info,train_test
 def build_graph_sampler_ne_predict(config):
     graph_info, train_info = load_data()
     base_node_num = graph_info["base_node_num"]
